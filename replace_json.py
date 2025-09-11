@@ -1,24 +1,34 @@
 #!/usr/bin/env python3
+"""
+replace_json.py
+---------------
+A CLI tool to replace keys/values in JSON files.
+
+Usage:
+    python replace_json.py --files file1.json|file2.json \
+        --replacements "nested:key.path=value|literal:some.key=42"
+"""
+
 import argparse
 import json
 import os
 import sys
 import io
 
-
 # Ensure stdout uses UTF-8 encoding
 try:
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
-except Exception:
+except (AttributeError, OSError):  # Narrowed from Exception
     pass
 
 
 def parse_replacements(raw: str):
     """
-    Converts 'A.B=1|C=2' into a list of pairs [('A.B', 1), ('C', 2)] with automatic casting:
-      - 5, 3.14 → number
+    Converts 'A.B=1|C=2' into a list of pairs [('A.B', 1), ('C', 2)].
+    Automatically casts:
+      - numbers → int/float
       - true/false/null → bool/None
-      - everything else → string (quotes not required)
+      - everything else → string.
     """
     replacements = []
     for pair in raw.split("|"):
@@ -36,7 +46,7 @@ def parse_replacements(raw: str):
 
 
 def set_by_path(obj, path_parts, value):
-    """Creates intermediate dicts if they don’t exist and assigns the value at the end of the path."""
+    """Creates intermediate dicts if they don’t exist and assigns the value."""
     current = obj
     for k in path_parts[:-1]:
         if k not in current or not isinstance(current[k], dict):
@@ -48,9 +58,9 @@ def set_by_path(obj, path_parts, value):
 def set_value(obj, key, value):
     """
     Rules:
-      - 'nested:K1.K2'  -> treat dots as a nested path
-      - 'literal:K1.K2' -> treat the key literally (with dots)
-      - default: if a literal key exists -> replace it; otherwise use nested path
+      - 'nested:K1.K2'  -> treat dots as a nested path.
+      - 'literal:K1.K2' -> treat the key literally.
+      - default: if literal key exists -> replace it; else use nested path.
     """
     if key.startswith("nested:"):
         dotted = key[len("nested:"):]
@@ -69,9 +79,11 @@ def set_value(obj, key, value):
 
 
 def main():
+    """Parse arguments, apply replacements, and update JSON files."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--files", required=True, help="List of files separated by |")
-    parser.add_argument("--replacements", required=True, help="Key=value pairs separated by |")
+    parser.add_argument("--replacements", required=True,
+                        help="Key=value pairs separated by |")
     args = parser.parse_args()
 
     files = [f for f in args.files.split("|") if f.strip()]
@@ -97,23 +109,20 @@ def main():
             print(f"[X] File is not valid JSON: {file}", file=sys.stderr)
             sys.exit(1)
 
-        # Apply replacements
         for key, val in replacements:
             set_value(data, key, val)
 
-        # Write back updated JSON
         with open(file, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
 
         print(f"[OK] File updated: {file}")
 
-        # Print updated content
         try:
             with open(file, "r", encoding="utf-8") as f:
                 print("------ updated content ------")
                 print(f.read())
                 print("------ end of file ------")
-        except Exception:
+        except (OSError, IOError):  # Narrowed exception
             pass
 
 
