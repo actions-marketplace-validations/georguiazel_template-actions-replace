@@ -1,0 +1,61 @@
+name: Test Update JSON Config
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  replace-json:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Create sample JSON files
+        run: |
+          mkdir -p config
+          cat <<'EOF' > config/appsettings.json
+          {
+            "Database": {
+              "Host": "localhost",
+              "User": "dev-user",
+              "Password": "dev-pass"
+            },
+            "FeatureFlags": {
+              "EnableCache": true,
+              "EnableBeta": true
+            }
+          }
+          EOF
+
+          cat <<'EOF' > config/appsettings.test.json
+          {
+            "Database": {
+              "Host": "staging-db.example.com",
+              "User": "staging-user",
+              "Password": "staging-pass"
+            },
+            "FeatureFlags": {
+              "EnableCache": true,
+              "EnableBeta": false
+            }
+          }
+          EOF
+
+      - name: Replace values in JSON
+        uses: georguiazel/template-actions-replace@v5
+        with:
+          files: "${{ github.workspace }}/config/appsettings.json|${{ github.workspace }}/config/appsettings.test.json"
+          replacements: |
+            Database.Host=prod-db.example.com|
+            Database.User=${{ secrets.DB_USER }}|
+            Database.Password=${{ secrets.DB_PASSWORD }}|
+            FeatureFlags.EnableCache=false
+
+      - name: Show updated files
+        run: |
+          echo "---- appsettings.json ----"
+          cat config/appsettings.json
+          echo "---- appsettings.test.json ----"
+          cat config/appsettings.test.json
